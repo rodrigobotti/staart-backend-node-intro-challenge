@@ -1,4 +1,6 @@
 const api = require('../products-api')
+const { concurrentMap } = require('./concurrent-map')
+const { delayedReturn } = require('./delayed-return')
 
 /**
  * Retorna uma `Promise` com a lista detalhada de todos os produtos cadastrados da `products-api`.
@@ -7,7 +9,29 @@ const api = require('../products-api')
  * @returns {Promise<{{id:string,name:string,price:number,description:string}}[]>} lista de produtos cadastrados
  */
 const scrape = async () => {
-  // TODO:
+  async function* listProductIds(categoryId) {
+    let cursor = 0
+
+    while (cursor !== null) {
+      const { result, nextCursor } = await api.listProducts(categoryId, cursor)
+      cursor = nextCursor
+      for (const { id } of result) {
+        yield id
+      }
+    }
+  }
+
+  const products = []
+
+  const categories = await api.listCategories()
+
+  for (const { id: categoryId } of categories) {
+    for await (const productId of listProductIds(categoryId)) {
+      const product = await api.getProduct(productId)
+      products.push(product)
+    }
+  }
+  return products
 }
 
 /**
@@ -20,7 +44,33 @@ const scrape = async () => {
  * @returns {Promise<{{id:string,name:string,price:number,description:string}}[]>} lista de produtos cadastrados
  */
 const scrapeChallengeV2 = async () => {
-  // TODO:
+  const listAllProductsSummaries = async (category) => {
+    let cursor = 0
+    let summaries = []
+    const categoryId = category.id
+
+    while (cursor !== null) {
+      const { result, nextCursor } = await api.listProducts(categoryId, cursor)
+      summaries = summaries.concat(result)
+      cursor = nextCursor
+    }
+
+    return summaries
+  }
+
+  const getProductDetail = ({ id }) => api.getProduct(id)
+
+  return api
+    .listCategories()
+    .then((categories) =>
+      concurrentMap(2, listAllProductsSummaries, categories)
+    )
+    .then((summaries) => summaries.flat())
+    .then((summaries) => concurrentMap(5, getProductDetail, summaries))
+
+  // const categories = await api.listCategories()
+  // const summaries = await concurrentMap(2, listAllProductsSummaries, categories)
+  // return concurrentMap(5, getProductDetail, summaries.flat())
 }
 
 /**
@@ -33,7 +83,34 @@ const scrapeChallengeV2 = async () => {
  * @returns {Promise<{{id:string,name:string,price:number,description:string}}[]>} lista de produtos cadastrados
  */
 const scrapeChallengeV3 = async () => {
-  // TODO:
+  const listAllProductsSummaries = async (category) => {
+    let cursor = 0
+    let summaries = []
+    const categoryId = category.id
+
+    while (cursor !== null) {
+      const { result, nextCursor } = await api.listProducts(categoryId, cursor)
+      summaries = summaries.concat(result)
+      cursor = nextCursor
+    }
+
+    return summaries
+  }
+
+  const getProductDetail = ({ id }) => api.getProduct(id)
+  const delayedGetProductDetail = delayedReturn(100, getProductDetail)
+
+  return api
+    .listCategories()
+    .then((categories) =>
+      concurrentMap(3, listAllProductsSummaries, categories)
+    )
+    .then((summaries) => summaries.flat())
+    .then((summaries) => concurrentMap(1, delayedGetProductDetail, summaries))
+
+  // const categories = await api.listCategories()
+  // const summaries = await concurrentMap(3, listAllProductsSummaries, categories)
+  // return concurrentMap(1, delayedGetProductDetail, summaries.flat())
 }
 
 module.exports = {
