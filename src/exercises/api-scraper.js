@@ -44,7 +44,7 @@ const scrape = async () => {
  * @returns {Promise<{{id:string,name:string,price:number,description:string}}[]>} lista de produtos cadastrados
  */
 const scrapeChallengeV2 = async () => {
-  const listAllProductsSummaries = async (category) => {
+  const listProductsSummaries = async (category) => {
     let cursor = 0
     let summaries = []
     const categoryId = category.id
@@ -60,17 +60,15 @@ const scrapeChallengeV2 = async () => {
 
   const getProductDetail = ({ id }) => api.getProduct(id)
 
-  return api
-    .listCategories()
-    .then((categories) =>
-      concurrentMap(2, listAllProductsSummaries, categories)
-    )
-    .then((summaries) => summaries.flat())
-    .then((summaries) => concurrentMap(5, getProductDetail, summaries))
+  // return api
+  //   .listCategories()
+  //   .then((categories) => concurrentMap(2, listProductsSummaries, categories))
+  //   .then((summaries) => summaries.flat())
+  //   .then((summaries) => concurrentMap(5, getProductDetail, summaries))
 
-  // const categories = await api.listCategories()
-  // const summaries = await concurrentMap(2, listAllProductsSummaries, categories)
-  // return concurrentMap(5, getProductDetail, summaries.flat())
+  const categories = await api.listCategories()
+  const summaries = await concurrentMap(2, listProductsSummaries, categories)
+  return concurrentMap(5, getProductDetail, summaries.flat())
 }
 
 /**
@@ -82,34 +80,33 @@ const scrapeChallengeV2 = async () => {
  *
  * @returns {Promise<{{id:string,name:string,price:number,description:string}}[]>} lista de produtos cadastrados
  */
-const scrapeChallengeV3 = async () => {
-  const listAllProductsSummaries = async (category) => {
-    let cursor = 0
-    let summaries = []
-    const categoryId = category.id
+const scrapeChallengeV3 = () => {
+  const listAllProductSummaries = ({ categoryId, cursor }, products) =>
+    cursor === null
+      ? Promise.resolve(products)
+      : api
+          .listProducts(categoryId, cursor)
+          .then(({ result, nextCursor }) =>
+            listAllProductSummaries(
+              { categoryId, cursor: nextCursor },
+              products.concat(result)
+            )
+          )
 
-    while (cursor !== null) {
-      const { result, nextCursor } = await api.listProducts(categoryId, cursor)
-      summaries = summaries.concat(result)
-      cursor = nextCursor
-    }
-
-    return summaries
-  }
+  const listProductsSummaries = (category) =>
+    listAllProductSummaries({ categoryId: category.id, cursor: 0 }, [])
 
   const getProductDetail = ({ id }) => api.getProduct(id)
   const delayedGetProductDetail = delayedReturn(100, getProductDetail)
 
   return api
     .listCategories()
-    .then((categories) =>
-      concurrentMap(3, listAllProductsSummaries, categories)
-    )
+    .then((categories) => concurrentMap(3, listProductsSummaries, categories))
     .then((summaries) => summaries.flat())
     .then((summaries) => concurrentMap(1, delayedGetProductDetail, summaries))
 
   // const categories = await api.listCategories()
-  // const summaries = await concurrentMap(3, listAllProductsSummaries, categories)
+  // const summaries = await concurrentMap(3, listProductsSummaries, categories)
   // return concurrentMap(1, delayedGetProductDetail, summaries.flat())
 }
 
