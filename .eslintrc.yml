@@ -1,0 +1,16 @@
+env:
+  es2021: true
+  node: true
+  jest: true
+extends:
+  - eslint:recommended
+  - plugin:prettier/recommended
+  - prettier
+parserOptions:
+  sourceType: script
+plugins:
+  - prettier
+ignorePatterns: build
+rules:
+  prettier/prettier: error
+  eqeqeq: error
